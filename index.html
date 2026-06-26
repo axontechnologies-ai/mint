@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>MintCoin — Кликер</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --mint: #4cd9b2;
+            --mint-glow: rgba(76, 217, 178, 0.45);
+            --glass-bg: rgba(255, 255, 255, 0.06);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --text-primary: #f0f4f8;
+            --text-secondary: rgba(255, 255, 255, 0.65);
+            --nav-bg: rgba(18, 22, 36, 0.55);
+            --safe-bottom: env(safe-area-inset-bottom, 4px);
+            --card-radius: 16px;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, 'SF Pro Display', sans-serif;
+            background: #0b0e1a;
+            color: var(--text-primary);
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .bg-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse at 20% 20%, #1a2a5e 0%, transparent 55%),
+                radial-gradient(ellipse at 80% 80%, #1a3a3a 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, #2d1b4e 0%, transparent 70%),
+                #0b0e1a;
+            animation: bgPulse 16s ease-in-out infinite alternate;
+        }
+        .bg-layer::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 30% 70%, rgba(76, 217, 178, 0.07) 0%, transparent 50%),
+                radial-gradient(circle at 70% 30%, rgba(100, 80, 255, 0.05) 0%, transparent 40%);
+            animation: bgShimmer 20s ease-in-out infinite alternate;
+        }
+        @keyframes bgPulse {
+            0% {
+                transform: scale(1) rotate(0deg);
+            }
+            100% {
+                transform: scale(1.08) rotate(2deg);
+            }
+        }
+        @keyframes bgShimmer {
+            0% {
+                opacity: 0.6;
+                transform: translate(0, 0);
+            }
+            100% {
+                opacity: 1;
+                transform: translate(4%, -4%);
+            }
+        }
+
+        #app {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 4px 8px 0;
+            max-width: 400px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+
+        /* ─── Header ─── */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2px 0 4px;
+            flex-shrink: 0;
+        }
+        .header-title {
+            font-size: 15px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #fff 40%, var(--mint));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header-balance {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px 2px 6px;
+            border-radius: 100px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 0.5px solid rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+        }
+        .header-balance .icon {
+            font-size: 13px;
+        }
+        .header-balance .amount {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        /* ─── Pages ─── */
+        .pages {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+            margin-top: 2px;
+        }
+        .page {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 2px 0 4px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            opacity: 0;
+            transform: translateY(8px) scale(0.98);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            pointer-events: none;
+        }
+        .page.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            pointer-events: auto;
+        }
+        .page::-webkit-scrollbar {
+            display: none;
+        }
+        .page {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* ─── Coin ─── */
+        .coin-wrapper {
+            position: relative;
+            width: 110px;
+            height: 110px;
+            flex-shrink: 0;
+            touch-action: none;
+            cursor: pointer;
+            margin: 2px 0;
+        }
+        .coin {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.50) 0%, rgba(255, 255, 255, 0.02) 55%, rgba(0, 0, 0, 0.15) 85%),
+                radial-gradient(circle at 70% 60%, var(--mint) 0%, #1a8a7a 60%, #0d4a4a 100%);
+            box-shadow:
+                0 12px 40px rgba(76, 217, 178, 0.25),
+                0 4px 16px rgba(0, 0, 0, 0.40),
+                inset 0 -2px 8px rgba(0, 0, 0, 0.30),
+                inset 0 2px 8px rgba(255, 255, 255, 0.25);
+            will-change: transform;
+            transform: translateZ(0);
+        }
+        .coin::before {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border-radius: 50%;
+            background:
+                radial-gradient(circle at 25% 20%, rgba(255, 255, 255, 0.45) 0%, transparent 45%),
+                radial-gradient(circle at 75% 70%, rgba(255, 255, 255, 0.10) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.10) 100%);
+            mix-blend-mode: overlay;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .coin-specular {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 3;
+            background: radial-gradient(circle at var(--sx, 30%) var(--sy, 25%),
+                    rgba(255, 255, 255, 0.55) 0%,
+                    rgba(255, 255, 255, 0.08) 30%,
+                    transparent 65%);
+            opacity: 0.4;
+            transition: opacity 0.2s ease;
+            mix-blend-mode: soft-light;
+        }
+        .coin-specular.active {
+            opacity: 1;
+        }
+        .coin::after {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.30) 0%, transparent 40%, transparent 70%, rgba(76, 217, 178, 0.15) 100%);
+            pointer-events: none;
+            z-index: 1;
+            mask: radial-gradient(circle at 50% 50%, transparent 88%, black 90%, black 100%);
+            -webkit-mask: radial-gradient(circle at 50% 50%, transparent 88%, black 90%, black 100%);
+        }
+
+        /* ─── Combo display ─── */
+        .combo-display {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--mint);
+            text-shadow: 0 0 20px var(--mint-glow);
+            min-height: 20px;
+            margin-top: -2px;
+            transition: opacity 0.2s;
+            opacity: 0;
+        }
+        .combo-display.active {
+            opacity: 1;
+        }
+
+        /* ─── Energy ─── */
+        .energy-section {
+            width: 100%;
+            max-width: 220px;
+            padding: 0 2px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .energy-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 2px;
+        }
+        .energy-track {
+            position: relative;
+            width: 100%;
+            height: 4px;
+            border-radius: 100px;
+            background: rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(4px);
+            border: 0.5px solid rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+        }
+        .energy-fill {
+            height: 100%;
+            border-radius: 100px;
+            background: linear-gradient(90deg, #1a8a7a, var(--mint), #7ae0c0);
+            background-size: 200% 100%;
+            animation: energyFlow 3s ease-in-out infinite alternate;
+            transform: translateZ(0);
+            transition: width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 16px rgba(76, 217, 178, 0.25);
+            position: relative;
+        }
+        .energy-fill::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 100px;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.25) 30%, transparent 60%);
+            animation: energyShimmer 2.4s ease-in-out infinite;
+            mix-blend-mode: overlay;
+        }
+        @keyframes energyFlow {
+            0% {
+                background-position: 0% 0%;
+            }
+            100% {
+                background-position: 100% 0%;
+            }
+        }
+        @keyframes energyShimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(200%);
+            }
+        }
+
+        /* ─── Stats row ─── */
+        .stats-row {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            padding: 0 2px;
+            margin-top: 4px;
+        }
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 2px 6px 2px 4px;
+            border-radius: 100px;
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(8px);
+            border: 0.5px solid rgba(255, 255, 255, 0.06);
+            font-size: 9px;
+            font-weight: 500;
+        }
+        .stat-item .stat-icon {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+        .stat-item .stat-value {
+            color: #fff;
+        }
+        .stat-item .stat-label {
+            color: var(--text-secondary);
+            font-weight: 400;
+            font-size: 8px;
+        }
+
+        /* ─── Daily bonus ─── */
+        .daily-bonus {
+            width: 100%;
+            max-width: 260px;
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(12px);
+            border: 0.5px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--card-radius);
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 4px;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .daily-bonus:active {
+            transform: scale(0.97);
+        }
+        .daily-bonus .info {
+            display: flex;
+            flex-direction: column;
+        }
+        .daily-bonus .title {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .daily-bonus .sub {
+            font-size: 9px;
+            color: var(--text-secondary);
+        }
+        .daily-bonus .reward {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--mint);
+        }
+
+        /* ─── Tasks ─── */
+        .tasks-section {
+            width: 100%;
+            max-width: 280px;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+        .task-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: var(--card-radius);
+            border: 0.5px solid rgba(255, 255, 255, 0.04);
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+        .task-item .desc {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+        .task-item .desc .name {
+            font-weight: 500;
+        }
+        .task-item .desc .progress {
+            font-size: 9px;
+            color: var(--text-secondary);
+        }
+        .task-item .claim {
+            padding: 2px 10px;
+            border-radius: 100px;
+            background: var(--mint);
+            color: #0b0e1a;
+            font-weight: 600;
+            font-size: 10px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .task-item .claim.done {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .task-item .claim:active {
+            transform: scale(0.95);
+        }
+
+        /* ─── Boosts ─── */
+        .boosts-list {
+            width: 100%;
+            max-width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 4px 2px;
+        }
+        .boost-card {
+            padding: 8px 12px;
+            border-radius: var(--card-radius);
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(16px);
+            border: 0.5px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.1s ease;
+            cursor: pointer;
+        }
+        .boost-card:active {
+            transform: scale(0.97);
+        }
+        .boost-info {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }
+        .boost-name {
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .boost-desc {
+            font-size: 9px;
+            color: var(--text-secondary);
+        }
+        .boost-price {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--mint);
+            background: rgba(76, 217, 178, 0.10);
+            padding: 2px 8px;
+            border-radius: 100px;
+        }
+
+        /* ─── Placeholder pages ─── */
+        .placeholder-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            gap: 6px;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 12px;
+        }
+        .placeholder-page .big-icon {
+            font-size: 32px;
+            opacity: 0.6;
+        }
+        .placeholder-page h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .placeholder-page p {
+            font-size: 11px;
+            max-width: 200px;
+        }
+
+        /* ─── Bottom Nav (поднята) ─── */
+        .bottom-nav {
+            position: relative;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 2px 2px calc(2px + var(--safe-bottom));
+            margin: 0 -8px;
+            margin-top: auto;
+            background: var(--nav-bg);
+            backdrop-filter: blur(28px) saturate(1.6);
+            border-top: 0.5px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+            transition: opacity 0.5s ease;
+            flex-shrink: 0;
+            border-radius: 18px 18px 0 0;
+        }
+        .bottom-nav.idle {
+            opacity: 0.5;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0px;
+            padding: 2px 8px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 7px;
+            font-weight: 500;
+            font-family: inherit;
+            cursor: pointer;
+            transition: color 0.2s ease;
+            position: relative;
+            min-width: 40px;
+        }
+        .nav-item .nav-icon {
+            font-size: 16px;
+            line-height: 1;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .nav-item.active {
+            color: var(--mint);
+        }
+        .nav-item.active .nav-icon {
+            transform: scale(1.08);
+        }
+        .nav-item .nav-badge {
+            position: absolute;
+            top: 0;
+            right: 2px;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--mint);
+            box-shadow: 0 0 10px var(--mint-glow);
+        }
+
+        /* ─── Particles & Effects ─── */
+        #particles {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            overflow: visible;
+        }
+        .shard {
+            position: absolute;
+            border-radius: 2px;
+            will-change: transform, opacity;
+            pointer-events: none;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.70) 0%, rgba(76, 217, 178, 0.40) 100%);
+            border: 0.5px solid rgba(255, 255, 255, 0.20);
+            box-shadow: 0 0 12px rgba(76, 217, 178, 0.15);
+            mix-blend-mode: plus-lighter;
+        }
+        .ripple {
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+            border: 0.5px solid rgba(255, 255, 255, 0.08);
+            background: radial-gradient(circle, rgba(76, 217, 178, 0.12) 0%, transparent 70%);
+            animation: rippleOut 0.5s ease-out forwards;
+            will-change: transform, opacity;
+        }
+        @keyframes rippleOut {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+        .float-text {
+            position: fixed;
+            pointer-events: none;
+            z-index: 20;
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--mint);
+            text-shadow: 0 0 30px rgba(76, 217, 178, 0.35), 0 4px 12px rgba(0, 0, 0, 0.30);
+            animation: floatUp 0.9s ease-out forwards;
+            will-change: transform, opacity;
+        }
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(0.6);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-60px) scale(1.2);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .coin-wrapper {
+                width: 90px;
+                height: 90px;
+            }
+            .header-title {
+                font-size: 13px;
+            }
+            .header-balance {
+                font-size: 10px;
+            }
+            .stat-item {
+                font-size: 8px;
+                padding: 1px 4px;
+            }
+            .boost-card {
+                padding: 6px 10px;
+            }
+            .boost-name {
+                font-size: 11px;
+            }
+            .task-item {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+            .daily-bonus .title {
+                font-size: 11px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-layer" aria-hidden="true"></div>
+    <div id="particles"></div>
+
+    <div id="app">
+
+        <header class="header">
+            <span class="header-title">✦ MintCoin</span>
+            <div class="header-balance">
+                <span class="icon">🪙</span>
+                <span class="amount" id="balanceAmount">0</span>
+                <span>MINT</span>
+            </div>
+        </header>
+
+        <div class="pages">
+
+            <!-- HOME -->
+            <div class="page active" id="page-home">
+                <div class="coin-wrapper" id="coinWrapper">
+                    <div class="coin" id="coin">
+                        <div class="coin-specular" id="coinSpecular"></div>
+                    </div>
+                </div>
+                <div class="combo-display" id="comboDisplay">🔥 Комбо x<span id="comboCount">1</span></div>
+
+                <div class="energy-section">
+                    <div class="energy-label">
+                        <span>⚡ Энергия</span>
+                        <span id="energyText">50 / 50</span>
+                    </div>
+                    <div class="energy-track">
+                        <div class="energy-fill" id="energyFill" style="width:100%"></div>
+                    </div>
+                </div>
+
+                <div class="stats-row">
+                    <div class="stat-item">
+                        <span class="stat-icon">👆</span>
+                        <span class="stat-value" id="perClick">1</span>
+                        <span class="stat-label">за клик</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">⏱️</span>
+                        <span class="stat-value" id="perHour">0</span>
+                        <span class="stat-label">/ час</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-icon">💤</span>
+                        <span class="stat-value" id="passiveIncome">0</span>
+                        <span class="stat-label">/ сек</span>
+                    </div>
+                </div>
+
+                <!-- Daily Bonus -->
+                <div class="daily-bonus" id="dailyBonus">
+                    <div class="info">
+                        <span class="title">🎁 Ежедневный бонус</span>
+                        <span class="sub" id="dailyStatus">Заберите сегодня</span>
+                    </div>
+                    <span class="reward" id="dailyReward">+10</span>
+                </div>
+
+                <!-- Tasks -->
+                <div class="tasks-section" id="tasksContainer">
+                    <div class="task-item" data-task="clicks">
+                        <div class="desc">
+                            <span class="name">👆 Сделайте 100 кликов</span>
+                            <span class="progress" id="taskClicksProgress">0 / 100</span>
+                        </div>
+                        <span class="claim" id="taskClicksClaim">Забрать</span>
+                    </div>
+                    <div class="task-item" data-task="boost">
+                        <div class="desc">
+                            <span class="name">⬆️ Купите 2 усиления</span>
+                            <span class="progress" id="taskBoostProgress">0 / 2</span>
+                        </div>
+                        <span class="claim" id="taskBoostClaim">Забрать</span>
+                    </div>
+                    <div class="task-item" data-task="friends">
+                        <div class="desc">
+                            <span class="name">👥 Пригласите 1 друга</span>
+                            <span class="progress" id="taskFriendsProgress">0 / 1</span>
+                        </div>
+                        <span class="claim" id="taskFriendsClaim">Забрать</span>
+                    </div>
+                </div>
+
+                <div style="height:6px;flex-shrink:0;"></div>
+            </div>
+
+            <!-- BOOSTS -->
+            <div class="page" id="page-boosts">
+                <div class="boosts-list">
+                    <div class="boost-card" data-boost="multiplier">
+                        <div class="boost-info">
+                            <span class="boost-name">🚀 Умножитель клика</span>
+                            <span class="boost-desc">+0.5 MINT за клик</span>
+                        </div>
+                        <span class="boost-price">50 MINT</span>
+                    </div>
+                    <div class="boost-card" data-boost="energy">
+                        <div class="boost-info">
+                            <span class="boost-name">🔋 Восстановление</span>
+                            <span class="boost-desc">+30% скорости регенерации</span>
+                        </div>
+                        <span class="boost-price">100 MINT</span>
+                    </div>
+                    <div class="boost-card" data-boost="maxenergy">
+                        <div class="boost-info">
+                            <span class="boost-name">⚡ Макс. энергия</span>
+                            <span class="boost-desc">+20 к максимуму</span>
+                        </div>
+                        <span class="boost-price">200 MINT</span>
+                    </div>
+                    <div class="boost-card" data-boost="passive">
+                        <div class="boost-info">
+                            <span class="boost-name">💤 Пассивный доход</span>
+                            <span class="boost-desc">+0.1 MINT/сек</span>
+                        </div>
+                        <span class="boost-price">150 MINT</span>
+                    </div>
+                </div>
+                <div style="height:6px;flex-shrink:0;"></div>
+            </div>
+
+            <!-- FRIENDS -->
+            <div class="page" id="page-friends">
+                <div class="placeholder-page">
+                    <div class="big-icon">👥</div>
+                    <h3>Пригласите друзей</h3>
+                    <p>За каждого друга, который начнёт кликать, вы получите 10 MINT.</p>
+                    <div id="inviteBtn" style="padding:6px 16px;border-radius:100px;background:var(--mint);color:#0b0e1a;font-weight:600;font-size:13px;margin-top:4px;cursor:pointer;">Пригласить</div>
+                    <p style="font-size:10px;opacity:0.5;margin-top:6px;">Приглашено: <span id="friendsCount">0</span></p>
+                </div>
+            </div>
+
+            <!-- WALLET -->
+            <div class="page" id="page-wallet">
+                <div class="placeholder-page">
+                    <div class="big-icon">💎</div>
+                    <h3>Ваш кошелёк</h3>
+                    <p style="font-size:14px;">
+                        Баланс: <strong id="walletBalance" style="color:var(--mint);">0</strong> MINT
+                    </p>
+                    <p style="font-size:10px;opacity:0.4;">История транзакций появится здесь</p>
+                </div>
+            </div>
+
+        </div>
+
+        <nav class="bottom-nav" id="bottomNav">
+            <button class="nav-item active" data-tab="home">
+                <span class="nav-icon">🏠</span>
+                <span>Главная</span>
+            </button>
+            <button class="nav-item" data-tab="boosts">
+                <span class="nav-icon">⚡</span>
+                <span>Усиления</span>
+                <span class="nav-badge"></span>
+            </button>
+            <button class="nav-item" data-tab="friends">
+                <span class="nav-icon">👥</span>
+                <span>Друзья</span>
+            </button>
+            <button class="nav-item" data-tab="wallet">
+                <span class="nav-icon">💎</span>
+                <span>Кошелёк</span>
+            </button>
+        </nav>
+
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            let tg = null;
+            try {
+                tg = window.Telegram.WebApp;
+                tg.ready();
+                tg.expand();
+            } catch (_) { /* нет Telegram */ }
+
+            // ─── State ──────────────────────────────────
+            const state = {
+                balance: 0,
+                energy: 50,
+                maxEnergy: 50,
+                perClick: 1,
+                clickMultiplier: 1,
+                energyRegenRate: 0.05,
+                passiveIncome: 0, // дополнительный доход в секунду
+                totalClicks: 0,
+                totalBoostsBought: 0,
+                friendsInvited: 0,
+                dailyClaimed: false,
+                lastDailyDate: '',
+                tasks: {
+                    clicks: { current: 0, target: 100, claimed: false },
+                    boost: { current: 0, target: 2, claimed: false },
+                    friends: { current: 0, target: 1, claimed: false },
+                },
+                combo: 1,
+                lastClickTime: 0,
+                comboTimeout: null,
+            };
+
+            // ─── DOM ──────────────────────────────────
+            const coin = document.getElementById('coin');
+            const specular = document.getElementById('coinSpecular');
+            const balanceEl = document.getElementById('balanceAmount');
+            const walletBalanceEl = document.getElementById('walletBalance');
+            const energyFill = document.getElementById('energyFill');
+            const energyText = document.getElementById('energyText');
+            const perClickEl = document.getElementById('perClick');
+            const perHourEl = document.getElementById('perHour');
+            const passiveIncomeEl = document.getElementById('passiveIncome');
+            const comboDisplay = document.getElementById('comboDisplay');
+            const comboCount = document.getElementById('comboCount');
+            const dailyBonus = document.getElementById('dailyBonus');
+            const dailyStatus = document.getElementById('dailyStatus');
+            const dailyReward = document.getElementById('dailyReward');
+            const taskClicksProgress = document.getElementById('taskClicksProgress');
+            const taskBoostProgress = document.getElementById('taskBoostProgress');
+            const taskFriendsProgress = document.getElementById('taskFriendsProgress');
+            const taskClicksClaim = document.getElementById('taskClicksClaim');
+            const taskBoostClaim = document.getElementById('taskBoostClaim');
+            const taskFriendsClaim = document.getElementById('taskFriendsClaim');
+            const friendsCountEl = document.getElementById('friendsCount');
+            const bottomNav = document.getElementById('bottomNav');
+            const pages = document.querySelectorAll('.page');
+            const navItems = document.querySelectorAll('.nav-item');
+
+            // ─── CloudStorage ──────────────────────────
+            function loadData() {
+                return new Promise((resolve) => {
+                    if (!tg || !tg.CloudStorage) { resolve(null); return; }
+                    tg.CloudStorage.getItems(['mintcoin_balance', 'mintcoin_data'], (err, items) => {
+                        if (err) { resolve(null); return; }
+                        const data = {
+                            balance: items && items['mintcoin_balance'] ? parseInt(items['mintcoin_balance'],
+                                10) : null,
+                            state: items && items['mintcoin_data'] ? JSON.parse(items['mintcoin_data']) : null,
+                        };
+                        resolve(data);
+                    });
+                });
+            }
+
+            function saveData() {
+                if (!tg || !tg.CloudStorage) return;
+                const data = {
+                    totalClicks: state.totalClicks,
+                    totalBoostsBought: state.totalBoostsBought,
+                    friendsInvited: state.friendsInvited,
+                    dailyClaimed: state.dailyClaimed,
+                    lastDailyDate: state.lastDailyDate,
+                    tasks: state.tasks,
+                    clickMultiplier: state.clickMultiplier,
+                    energyRegenRate: state.energyRegenRate,
+                    maxEnergy: state.maxEnergy,
+                    passiveIncome: state.passiveIncome,
+                };
+                tg.CloudStorage.setItems({
+                    'mintcoin_balance': String(Math.floor(state.balance)),
+                    'mintcoin_data': JSON.stringify(data),
+                }, () => {});
+            }
+
+            // ─── Spring ────────────────────────────────
+            class Spring {
+                constructor(val = 1, vel = 0, damp = 0.70, stiff = 0.26) {
+                    this.value = val;
+                    this.velocity = vel;
+                    this.damping = damp;
+                    this.stiffness = stiff;
+                    this.target = 1;
+                }
+                update(dt) {
+                    const force = (this.target - this.value) * this.stiffness;
+                    this.velocity = (this.velocity + force) * this.damping;
+                    this.value += this.velocity * dt * 60;
+                    return this.value;
+                }
+                setTarget(t) { this.target = t; }
+                impulse(v) { this.velocity += v; }
+            }
+
+            const scaleSpring = new Spring(1, 0, 0.70, 0.26);
+            const tiltX = new Spring(0, 0, 0.85, 0.12);
+            const tiltY = new Spring(0, 0, 0.85, 0.12);
+            let lastFrame = performance.now();
+
+            // ─── Клик ──────────────────────────────────
+            function handleClick(cx, cy) {
+                if (state.energy < 1) return;
+                state.energy = Math.max(0, state.energy - 1);
+                updateEnergyUI();
+
+                // Комбо
+                const now = Date.now();
+                if (now - state.lastClickTime < 500) {
+                    state.combo = Math.min(state.combo + 1, 10);
+                } else {
+                    state.combo = 1;
+                }
+                state.lastClickTime = now;
+                clearTimeout(state.comboTimeout);
+                state.comboTimeout = setTimeout(() => {
+                    state.combo = 1;
+                    updateComboUI();
+                }, 1500);
+                updateComboUI();
+
+                const comboBonus = 1 + (state.combo - 1) * 0.05; // +5% за каждый уровень комбо
+                const earned = state.perClick * state.clickMultiplier * comboBonus;
+                state.balance += earned;
+                state.totalClicks++;
+                state.tasks.clicks.current = Math.min(state.tasks.clicks.current + 1, state.tasks.clicks.target);
+                updateTasksUI();
+
+                updateBalanceUI();
+                saveData();
+
+                scaleSpring.impulse(-0.35);
+                scaleSpring.setTarget(1);
+
+                spawnShards(cx, cy, earned);
+                spawnFloatText(cx, cy, `+${earned.toFixed(1)}`);
+                spawnRipple(cx, cy);
+
+                specular.classList.add('active');
+                setTimeout(() => specular.classList.remove('active'), 100);
+                if (navigator.vibrate) navigator.vibrate(5);
+
+                const elapsed = (performance.now() - state.lastEnergyUpdate) / 1000;
+                state.perHour = Math.round(state.totalClicks * 3600 / Math.max(1, elapsed));
+                perHourEl.textContent = state.perHour;
+            }
+
+            // ─── Указатель ────────────────────────────
+            function getPos(e) {
+                const r = coin.getBoundingClientRect();
+                const x = (e.clientX || e.pageX) - r.left;
+                const y = (e.clientY || e.pageY) - r.top;
+                return { x: Math.max(0, Math.min(1, x / r.width)), y: Math.max(0, Math.min(1, y / r.height)) };
+            }
+
+            function onDown(e) {
+                e.preventDefault();
+                const p = getPos(e);
+                handleClick(e.clientX || e.pageX, e.clientY || e.pageY);
+                updateSpecular(p.x, p.y);
+                resetIdle();
+            }
+
+            function onMove(e) {
+                const p = getPos(e);
+                updateSpecular(p.x, p.y);
+                tiltX.setTarget((p.x - 0.5) * 0.06);
+                tiltY.setTarget((p.y - 0.5) * -0.06);
+                resetIdle();
+            }
+
+            function onUp() {
+                tiltX.setTarget(0);
+                tiltY.setTarget(0);
+                scaleSpring.impulse(0.05);
+                resetIdle();
+            }
+
+            function onLeave() {
+                tiltX.setTarget(0);
+                tiltY.setTarget(0);
+                specular.style.opacity = '0.4';
+            }
+
+            function updateSpecular(x, y) {
+                specular.style.setProperty('--sx', (x * 100) + '%');
+                specular.style.setProperty('--sy', (y * 100) + '%');
+                specular.style.opacity = '0.8';
+            }
+
+            coin.addEventListener('mousedown', onDown);
+            coin.addEventListener('mousemove', onMove);
+            coin.addEventListener('mouseup', onUp);
+            coin.addEventListener('mouseleave', onLeave);
+            coin.addEventListener('touchstart', (e) => {
+                const t = e.touches[0];
+                if (t) onDown({ clientX: t.clientX, clientY: t.clientY, preventDefault: () => e.preventDefault() });
+            }, { passive: false });
+            coin.addEventListener('touchmove', (e) => {
+                const t = e.touches[0];
+                if (t) onMove({ clientX: t.clientX, clientY: t.clientY });
+            }, { passive: true });
+            coin.addEventListener('touchend', onUp, { passive: true });
+
+            // ─── Idle nav ──────────────────────────────
+            function resetIdle() {
+                clearTimeout(state.idleTimer);
+                bottomNav.classList.remove('idle');
+                state.idleTimer = setTimeout(() => bottomNav.classList.add('idle'), 4000);
+            }
+            resetIdle();
+
+            // ─── UI updates ────────────────────────────
+            function updateBalanceUI() {
+                const v = Math.floor(state.balance);
+                balanceEl.textContent = v;
+                if (walletBalanceEl) walletBalanceEl.textContent = v;
+                balanceEl.style.transform = 'scale(1.10)';
+                setTimeout(() => balanceEl.style.transform = 'scale(1)', 100);
+            }
+
+            function updateEnergyUI() {
+                const pct = (state.energy / state.maxEnergy) * 100;
+                energyFill.style.width = Math.max(0, Math.min(100, pct)) + '%';
+                energyText.textContent = `${Math.floor(state.energy)} / ${state.maxEnergy}`;
+                energyFill.style.background = state.energy < 15 ?
+                    'linear-gradient(90deg, #e87171, #f0a070, #f5c080)' :
+                    'linear-gradient(90deg, #1a8a7a, var(--mint), #7ae0c0)';
+            }
+
+            function updateComboUI() {
+                if (state.combo > 1) {
+                    comboDisplay.classList.add('active');
+                    comboCount.textContent = state.combo;
+                } else {
+                    comboDisplay.classList.remove('active');
+                }
+            }
+
+            function updateTasksUI() {
+                const t = state.tasks;
+                taskClicksProgress.textContent = `${t.clicks.current} / ${t.clicks.target}`;
+                taskBoostProgress.textContent = `${t.boost.current} / ${t.boost.target}`;
+                taskFriendsProgress.textContent = `${t.friends.current} / ${t.friends.target}`;
+                taskClicksClaim.className = 'claim' + (t.clicks.claimed ? ' done' : '');
+                taskBoostClaim.className = 'claim' + (t.boost.claimed ? ' done' : '');
+                taskFriendsClaim.className = 'claim' + (t.friends.claimed ? ' done' : '');
+                if (t.clicks.current >= t.clicks.target && !t.clicks.claimed) taskClicksClaim.textContent = 'Забрать';
+                else if (t.clicks.claimed) taskClicksClaim.textContent = '✅';
+                else taskClicksClaim.textContent = 'Забрать';
+                if (t.boost.current >= t.boost.target && !t.boost.claimed) taskBoostClaim.textContent = 'Забрать';
+                else if (t.boost.claimed) taskBoostClaim.textContent = '✅';
+                else taskBoostClaim.textContent = 'Забрать';
+                if (t.friends.current >= t.friends.target && !t.friends.claimed) taskFriendsClaim.textContent = 'Забрать';
+                else if (t.friends.claimed) taskFriendsClaim.textContent = '✅';
+                else taskFriendsClaim.textContent = 'Забрать';
+            }
+
+            function updatePassiveUI() {
+                passiveIncomeEl.textContent = (state.passiveIncome + state.perClick * state.clickMultiplier * 0.04 * (1 +
+                    state.passiveIncome * 0.1)).toFixed(1);
+            }
+
+            function updateEnergy(dt) {
+                if (state.energy < state.maxEnergy) {
+                    state.energy = Math.min(state.maxEnergy, state.energy + state.energyRegenRate * dt);
+                    updateEnergyUI();
+                }
+                // Пассивный доход
+                const passive = state.passiveIncome + state.perClick * state.clickMultiplier * 0.04 * (1 + state
+                .passiveIncome * 0.1);
+                state.balance += passive * dt;
+                updateBalanceUI();
+            }
+
+            // ─── Daily Bonus ───────────────────────────
+            function checkDailyBonus() {
+                const today = new Date().toDateString();
+                if (state.lastDailyDate !== today) {
+                    state.dailyClaimed = false;
+                    state.lastDailyDate = today;
+                    dailyStatus.textContent = 'Заберите сегодня';
+                    dailyReward.textContent = '+10';
+                    dailyBonus.style.opacity = '1';
+                } else {
+                    if (state.dailyClaimed) {
+                        dailyStatus.textContent = '✅ Получено';
+                        dailyReward.textContent = '✔️';
+                        dailyBonus.style.opacity = '0.6';
+                    } else {
+                        dailyStatus.textContent = 'Заберите сегодня';
+                        dailyReward.textContent = '+10';
+                        dailyBonus.style.opacity = '1';
+                    }
+                }
+            }
+
+            dailyBonus.addEventListener('click', function() {
+                if (state.dailyClaimed) return;
+                state.balance += 10;
+                state.dailyClaimed = true;
+                updateBalanceUI();
+                dailyStatus.textContent = '✅ Получено';
+                dailyReward.textContent = '✔️';
+                dailyBonus.style.opacity = '0.6';
+                saveData();
+                spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, '🎁 +10 MINT');
+            });
+
+            // ─── Tasks claim ───────────────────────────
+            function claimTask(taskId, reward) {
+                const task = state.tasks[taskId];
+                if (!task || task.claimed) return;
+                if (task.current < task.target) {
+                    spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, '❌ Задание не выполнено');
+                    return;
+                }
+                task.claimed = true;
+                state.balance += reward;
+                updateBalanceUI();
+                updateTasksUI();
+                saveData();
+                spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, `✅ +${reward} MINT`);
+            }
+
+            taskClicksClaim.addEventListener('click', () => claimTask('clicks', 15));
+            taskBoostClaim.addEventListener('click', () => claimTask('boost', 20));
+            taskFriendsClaim.addEventListener('click', () => claimTask('friends', 25));
+
+            // ─── Friends invite ────────────────────────
+            document.getElementById('inviteBtn').addEventListener('click', function() {
+                // Симуляция приглашения
+                state.friendsInvited++;
+                state.tasks.friends.current = Math.min(state.tasks.friends.current + 1, state.tasks.friends.target);
+                friendsCountEl.textContent = state.friendsInvited;
+                updateTasksUI();
+                saveData();
+                spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, '👥 +1 друг');
+                if (tg && tg.showPopup) {
+                    tg.showPopup({
+                        title: 'Приглашение',
+                        message: 'Скопируйте ссылку и отправьте другу!',
+                        buttons: [{ type: 'ok' }]
+                    });
+                }
+            });
+
+            // ─── Boost purchases ──────────────────────
+            document.querySelectorAll('.boost-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    const type = this.dataset.boost;
+                    let cost = 0,
+                        msg = '';
+                    if (type === 'multiplier') {
+                        cost = 50;
+                        if (state.balance >= cost) {
+                            state.balance -= cost;
+                            state.clickMultiplier += 0.5;
+                            state.perClick = Math.floor(1 + state.clickMultiplier);
+                            perClickEl.textContent = state.perClick;
+                            state.totalBoostsBought++;
+                            state.tasks.boost.current = Math.min(state.tasks.boost.current + 1, state.tasks
+                                .boost.target);
+                            msg = '🚀 +0.5x к клику';
+                            updateBalanceUI();
+                            updateTasksUI();
+                            saveData();
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, msg);
+                        } else {
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, '💎 Недостаточно MINT');
+                        }
+                    } else if (type === 'energy') {
+                        cost = 100;
+                        if (state.balance >= cost) {
+                            state.balance -= cost;
+                            state.energyRegenRate += 0.03;
+                            state.totalBoostsBought++;
+                            state.tasks.boost.current = Math.min(state.tasks.boost.current + 1, state.tasks
+                                .boost.target);
+                            msg = '🔋 +30% регенерации';
+                            updateBalanceUI();
+                            updateTasksUI();
+                            saveData();
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, msg);
+                        } else {
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, '💎 Недостаточно MINT');
+                        }
+                    } else if (type === 'maxenergy') {
+                        cost = 200;
+                        if (state.balance >= cost) {
+                            state.balance -= cost;
+                            state.maxEnergy += 20;
+                            state.energy = Math.min(state.energy + 20, state.maxEnergy);
+                            state.totalBoostsBought++;
+                            state.tasks.boost.current = Math.min(state.tasks.boost.current + 1, state.tasks
+                                .boost.target);
+                            updateBalanceUI();
+                            updateEnergyUI();
+                            updateTasksUI();
+                            saveData();
+                            msg = '⚡ +20 макс. энергии';
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, msg);
+                        } else {
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, '💎 Недостаточно MINT');
+                        }
+                    } else if (type === 'passive') {
+                        cost = 150;
+                        if (state.balance >= cost) {
+                            state.balance -= cost;
+                            state.passiveIncome += 0.1;
+                            state.totalBoostsBought++;
+                            state.tasks.boost.current = Math.min(state.tasks.boost.current + 1, state.tasks
+                                .boost.target);
+                            updateBalanceUI();
+                            updateTasksUI();
+                            saveData();
+                            msg = '💤 +0.1 MINT/сек';
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, msg);
+                        } else {
+                            spawnFloatText(window.innerWidth / 2, window.innerHeight / 2 - 40, '💎 Недостаточно MINT');
+                        }
+                    }
+                });
+            });
+
+            // ─── Particles ─────────────────────────────
+            function spawnShards(cx, cy, count) {
+                const num = Math.min(14 + Math.floor(count * 0.3), 30);
+                for (let i = 0; i < num; i++) {
+                    const el = document.createElement('div');
+                    el.className = 'shard';
+                    const size = 3 + Math.random() * 8;
+                    const ang = Math.random() * Math.PI * 2;
+                    const dist = 50 + Math.random() * 100;
+                    const rot = Math.random() * 720 - 360;
+                    const tx = Math.cos(ang) * dist;
+                    const ty = Math.sin(ang) * dist - 20;
+                    const hue = 160 + Math.random() * 40;
+                    const light = 70 + Math.random() * 25;
+                    el.style.cssText = `
+                        width:${size}px; height:${size*(0.5+Math.random()*0.8)}px;
+                        left:${cx-size/2}px; top:${cy-size/2}px;
+                        background:linear-gradient(135deg, rgba(255,255,255,${0.3+Math.random()*0.5}) 0%, hsla(${hue},80%,${light}%,${0.2+Math.random()*0.4}) 100%);
+                        border-radius:${Math.random()>0.5?'50%':'2px'};
+                        box-shadow:0 0 12px rgba(76,217,178,${0.05+Math.random()*0.15});
+                        border:0.5px solid rgba(255,255,255,${0.05+Math.random()*0.15});
+                        transform:rotate(${Math.random()*360}deg) scale(0.3);
+                        opacity:0;
+                    `;
+                    document.getElementById('particles').appendChild(el);
+                    const start = performance.now() + Math.random() * 60;
+                    const dur = 350 + Math.random() * 350;
+
+                    function anim(time) {
+                        const prog = Math.min(1, (time - start) / dur);
+                        if (prog < 0) { requestAnimationFrame(anim); return; }
+                        const ease = 1 - Math.pow(1 - prog, 3);
+                        const px = tx * ease;
+                        const py = ty * ease - 15 * ease * ease;
+                        const sc = 0.3 + 0.7 * (1 - Math.pow(1 - prog, 2.5));
+                        const op = prog < 0.15 ? prog / 0.15 : 1 - (prog - 0.15) / 0.85;
+                        el.style.transform = `translate(${px}px,${py}px) rotate(${rot*ease}deg) scale(${sc})`;
+                        el.style.opacity = Math.max(0, Math.min(1, op * 0.9));
+                        if (prog < 1) requestAnimationFrame(anim);
+                        else {
+                            el.style.opacity = '0';
+                            setTimeout(() => el.remove(), 200);
+                        }
+                    }
+                    requestAnimationFrame(anim);
+                }
+            }
+
+            function spawnRipple(cx, cy) {
+                const el = document.createElement('div');
+                el.className = 'ripple';
+                const s = 60 + Math.random() * 40;
+                el.style.cssText = `width:${s}px;height:${s}px;left:${cx-s/2}px;top:${cy-s/2}px;border-color:rgba(76,217,178,${0.15+Math.random()*0.15})`;
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 600);
+            }
+
+            function spawnFloatText(cx, cy, text) {
+                const el = document.createElement('div');
+                el.className = 'float-text';
+                el.textContent = text;
+                el.style.left = (cx - 30) + 'px';
+                el.style.top = (cy - 16) + 'px';
+                el.style.fontSize = (16 + Math.random() * 10) + 'px';
+                document.body.appendChild(el);
+                setTimeout(() => el.remove(), 1000);
+            }
+
+            // ─── Main loop ─────────────────────────────
+            function loop(time) {
+                const dt = Math.min(0.05, (time - lastFrame) / 1000);
+                lastFrame = time;
+                updateEnergy(dt);
+
+                const scale = scaleSpring.update(dt);
+                const tx = tiltX.update(dt) * 12;
+                const ty = tiltY.update(dt) * 12;
+                const sc = Math.max(0.65, Math.min(1.15, scale));
+                coin.style.transform =
+                    `translate3d(0,0,0) scale3d(${sc},${sc},1) rotateX(${ty}deg) rotateY(${tx}deg) rotateZ(${tx*0.2}deg)`;
+                const glow = 0.2 + (1 - Math.min(1, Math.abs(scale - 1) * 4)) * 0.35;
+                coin.style.boxShadow =
+                    `0 12px 40px rgba(76,217,178,${glow*0.3})` +
+                    `, 0 4px 16px rgba(0,0,0,0.35)` +
+                    `, inset 0 -2px 8px rgba(0,0,0,0.25)` +
+                    `, inset 0 2px 8px rgba(255,255,255,${0.15+glow*0.15})`;
+
+                updatePassiveUI();
+                requestAnimationFrame(loop);
+            }
+
+            // ─── Tabs ──────────────────────────────────
+            function switchTab(tab) {
+                pages.forEach(p => p.classList.toggle('active', p.id === 'page-' + tab));
+                navItems.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+                resetIdle();
+            }
+            navItems.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+            // ─── Init ──────────────────────────────────
+            async function init() {
+                const data = await loadData();
+                if (data) {
+                    if (data.balance !== null) state.balance = data.balance;
+                    if (data.state) {
+                        Object.assign(state, data.state);
+                    }
+                }
+                // Принудительно обновляем tasks current для friends, чтобы не потерять
+                state.tasks.friends.current = Math.min(state.friendsInvited, state.tasks.friends.target);
+
+                updateBalanceUI();
+                updateEnergyUI();
+                updateTasksUI();
+                updateComboUI();
+                perClickEl.textContent = state.perClick;
+                perHourEl.textContent = '0';
+                friendsCountEl.textContent = state.friendsInvited;
+                specular.style.setProperty('--sx', '30%');
+                specular.style.setProperty('--sy', '25%');
+                specular.style.opacity = '0.4';
+
+                checkDailyBonus();
+                lastFrame = performance.now();
+                requestAnimationFrame(loop);
+                switchTab('home');
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Автосохранение каждые 10 секунд
+                setInterval(saveData, 10000);
+
+                console.log('MintCoin — Hamster Combat стиль запущен');
+            }
+
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+            else init();
+
+        })();
+    </script>
+</body>
+</html>
